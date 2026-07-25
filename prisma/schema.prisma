@@ -1,0 +1,158 @@
+// Shoe Factory Management System — data model
+// Domains: Inventory, Customers, Staff, Finance
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- Inventory ----------
+
+model Supplier {
+  id        String        @id @default(cuid())
+  name      String
+  contact   String?
+  phone     String?
+  email     String?
+  address   String?
+  materials RawMaterial[]
+  createdAt DateTime      @default(now())
+}
+
+model RawMaterial {
+  id           String          @id @default(cuid())
+  name         String
+  unit         String          @default("unit") // kg, m, pair, roll...
+  quantity     Float           @default(0)
+  unitCost     Float           @default(0)
+  reorderLevel Float           @default(0)
+  supplier     Supplier?       @relation(fields: [supplierId], references: [id])
+  supplierId   String?
+  movements    StockMovement[]
+  createdAt    DateTime        @default(now())
+}
+
+model Product {
+  id           String          @id @default(cuid())
+  sku          String          @unique
+  name         String
+  model        String?
+  size         String?
+  color        String?
+  price        Float           @default(0)
+  cost         Float           @default(0)
+  quantity     Int             @default(0)
+  reorderLevel Int             @default(0)
+  movements    StockMovement[]
+  orderLines   OrderLine[]
+  createdAt    DateTime        @default(now())
+}
+
+model StockMovement {
+  id            String       @id @default(cuid())
+  type          String // IN, OUT, ADJUST
+  quantity      Float
+  reason        String?
+  product       Product?     @relation(fields: [productId], references: [id])
+  productId     String?
+  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id])
+  rawMaterialId String?
+  createdAt     DateTime     @default(now())
+}
+
+// ---------- Customers ----------
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  type      String   @default("retail") // retail, wholesale
+  phone     String?
+  email     String?
+  address   String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  number     String      @unique
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  customerId String
+  status     String      @default("Draft") // Draft, Confirmed, In Production, Shipped, Delivered, Closed
+  lines      OrderLine[]
+  invoice    Invoice?
+  notes      String?
+  createdAt  DateTime    @default(now())
+}
+
+model OrderLine {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int     @default(1)
+  unitPrice Float   @default(0)
+}
+
+// ---------- Staff ----------
+
+model Employee {
+  id         String       @id @default(cuid())
+  name       String
+  role       String       @default("Worker")
+  department String?
+  phone      String?
+  email      String?
+  wageRate   Float        @default(0) // per day
+  joinDate   DateTime     @default(now())
+  active     Boolean      @default(true)
+  attendance Attendance[]
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  date       DateTime @default(now())
+  status     String   @default("Present") // Present, Absent, Leave
+  hours      Float    @default(8)
+
+  @@unique([employeeId, date])
+}
+
+// ---------- Finance ----------
+
+model Invoice {
+  id        String    @id @default(cuid())
+  number    String    @unique
+  order     Order?    @relation(fields: [orderId], references: [id])
+  orderId   String?   @unique
+  amount    Float     @default(0)
+  status    String    @default("Unpaid") // Unpaid, Partial, Paid
+  dueDate   DateTime?
+  payments  Payment[]
+  createdAt DateTime  @default(now())
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId String
+  amount    Float
+  method    String   @default("Cash")
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  category  String   @default("Overhead") // Materials, Wages, Utilities, Overhead
+  amount    Float
+  note      String?
+  date      DateTime @default(now())
+}

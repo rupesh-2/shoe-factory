@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# local sqlite database
+*.db
+*.db-journal
+
+# vendored agent skills (reinstallable from skills-lock.json)
+/.claude/skills/
+/.agents/skills/
+/.windsurf/skills/
