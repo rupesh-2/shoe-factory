@@ -2,24 +2,29 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { money, date } from "@/lib/format";
-import { Card, PageHeader, Table, Th, Td, Badge, Button } from "@/components/ui";
+import { Card, PageHeader, Table, Th, Td, Badge, Button, Alert } from "@/components/ui";
 import { advanceStatus } from "../actions";
+import { planForOrder } from "../../production/actions";
 import { PIPELINE, nextStatus } from "../pipeline";
 
 export const dynamic = "force-dynamic";
 
 export default async function OrderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error } = await searchParams;
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
       customer: true,
       lines: { include: { product: true } },
       invoice: { include: { payments: true } },
+      batches: { include: { product: true }, orderBy: { createdAt: "asc" } },
     },
   });
 
@@ -28,6 +33,18 @@ export default async function OrderDetailPage({
   const total = order.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
   const currentIndex = (PIPELINE as readonly string[]).indexOf(order.status);
   const next = nextStatus(order.status);
+
+  // Pairs still to find: ordered − in stock − already being made for this order
+  const openBatches = order.batches.filter(
+    (b) => b.status === "Planned" || b.status === "In Progress"
+  );
+  const shortfall = order.lines.some((l) => {
+    const planned = openBatches
+      .filter((b) => b.productId === l.productId)
+      .reduce((s, b) => s + b.quantity, 0);
+    return l.quantity > Math.max(0, l.product.quantity) + planned;
+  });
+  const canPlan = ["Draft", "Confirmed", "In Production"].includes(order.status);
 
   return (
     <div>
@@ -41,6 +58,15 @@ export default async function OrderDetailPage({
         }
       />
 
+      {error && (
+        <Alert>
+          {error}{" "}
+          <Link href={`/orders/${order.id}`} className="underline ml-1">
+            Dismiss
+          </Link>
+        </Alert>
+      )}
+
       {/* Pipeline */}
       <Card className="p-5 mb-6">
         <div className="flex flex-wrap items-center gap-2">
@@ -52,17 +78,17 @@ export default async function OrderDetailPage({
                 <div
                   className={`px-3 py-1.5 rounded-full text-xs font-medium ${
                     active
-                      ? "bg-slate-900 text-white"
+                      ? "bg-primary text-white"
                       : done
                       ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-100 text-slate-400"
+                      : "bg-slate-100 text-slate-500"
                   }`}
                 >
                   {done ? "✓ " : ""}
                   {step}
                 </div>
                 {i < PIPELINE.length - 1 && (
-                  <span className="text-slate-300">→</span>
+                  <span className="text-slate-400">→</span>
                 )}
               </div>
             );
@@ -85,7 +111,7 @@ export default async function OrderDetailPage({
         )}
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <Card className="lg:col-span-2">
           <div className="px-5 py-4 border-b border-slate-200">
             <h2 className="font-semibold">Line items</h2>
@@ -95,6 +121,7 @@ export default async function OrderDetailPage({
               <tr>
                 <Th>Product</Th>
                 <Th className="text-right">Qty</Th>
+                <Th className="text-right">In stock</Th>
                 <Th className="text-right">Unit price</Th>
                 <Th className="text-right">Subtotal</Th>
               </tr>
@@ -104,11 +131,18 @@ export default async function OrderDetailPage({
                 <tr key={l.id}>
                   <Td>
                     <div className="font-medium">{l.product.name}</div>
-                    <div className="text-xs text-slate-400 font-mono">
+                    <div className="text-xs text-slate-500 font-mono">
                       {l.product.sku}
                     </div>
                   </Td>
                   <Td className="text-right">{l.quantity}</Td>
+                  <Td
+                    className={`text-right ${
+                      l.product.quantity < l.quantity ? "text-red-600" : "text-slate-500"
+                    }`}
+                  >
+                    {l.product.quantity}
+                  </Td>
                   <Td className="text-right">{money(l.unitPrice)}</Td>
                   <Td className="text-right font-medium">
                     {money(l.quantity * l.unitPrice)}
@@ -118,11 +152,57 @@ export default async function OrderDetailPage({
               <tr>
                 <Td className="font-semibold" />
                 <Td />
+                <Td />
                 <Td className="text-right font-semibold">Total</Td>
                 <Td className="text-right font-semibold">{money(total)}</Td>
               </tr>
             </tbody>
           </Table>
+          <div className="px-5 py-4 border-t border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold">Production</h3>
+              {canPlan && shortfall && (
+                <form action={planForOrder}>
+                  <input type="hidden" name="orderId" value={order.id} />
+                  <Button variant="secondary">Plan production for shortfall</Button>
+                </form>
+              )}
+            </div>
+            {order.batches.length === 0 ? (
+              <p className="text-sm text-slate-500 mt-2">
+                {shortfall
+                  ? "Not enough finished stock — plan batches to make the missing pairs."
+                  : "Enough finished stock to fulfil this order."}
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {order.batches.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between text-sm">
+                    <span>
+                      <span className="font-medium">{b.number}</span> · {b.product.name} ×{" "}
+                      {b.quantity}
+                    </span>
+                    <Badge
+                      color={
+                        b.status === "Completed"
+                          ? "green"
+                          : b.status === "In Progress"
+                          ? "amber"
+                          : b.status === "Planned"
+                          ? "blue"
+                          : "gray"
+                      }
+                    >
+                      {b.status}
+                    </Badge>
+                  </div>
+                ))}
+                <Link href="/production" className="text-sm font-medium text-primary hover:underline">
+                  Go to production →
+                </Link>
+              </div>
+            )}
+          </div>
         </Card>
 
         <div className="space-y-6">
@@ -166,17 +246,23 @@ export default async function OrderDetailPage({
                     {order.invoice.status}
                   </Badge>
                 </div>
-                <div className="pt-2">
+                <div className="pt-2 flex gap-4">
+                  <Link
+                    href={`/finance/invoices/${order.invoice.id}`}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    View / print
+                  </Link>
                   <Link
                     href="/finance"
-                    className="text-sm text-slate-700 underline"
+                    className="text-sm font-medium text-primary hover:underline"
                   >
                     Record payment →
                   </Link>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-500">
                 No invoice yet — created when the order is confirmed.
               </p>
             )}

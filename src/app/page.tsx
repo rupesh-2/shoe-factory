@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { money, num } from "@/lib/format";
 import {
@@ -32,6 +33,8 @@ export default async function DashboardPage() {
     expenses,
     openOrders,
     recentOrders,
+    activeBatches,
+    openPOs,
   ] = await Promise.all([
     prisma.product.findMany(),
     prisma.rawMaterial.findMany(),
@@ -45,7 +48,14 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       include: { customer: true },
     }),
+    prisma.productionBatch.findMany({
+      where: { status: { in: ["Planned", "In Progress"] } },
+    }),
+    prisma.purchaseOrder.count({ where: { status: "Ordered" } }),
   ]);
+  const pairsInProduction = activeBatches
+    .filter((b) => b.status === "In Progress")
+    .reduce((s, b) => s + b.quantity, 0);
 
   const revenue = payments._sum.amount ?? 0;
   const totalExpenses = expenses._sum.amount ?? 0;
@@ -65,7 +75,7 @@ export default async function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        subtitle="Overview across inventory, customers, staff and finance."
+        subtitle="Overview across inventory, production, customers, staff and finance."
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -83,20 +93,27 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <StatCard label="Products (SKUs)" value={num(products.length)} />
         <StatCard label="Customers" value={num(customers)} />
         <StatCard label="Active staff" value={num(employees)} />
         <StatCard label="Open orders" value={num(openOrders)} tone="amber" />
+        <StatCard
+          label="Pairs in production"
+          value={num(pairsInProduction)}
+          hint={`${activeBatches.length} open batches`}
+          tone="blue"
+        />
+        <StatCard label="Open purchase orders" value={num(openPOs)} tone="blue" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <Card className="lg:col-span-2">
           <div className="px-5 py-4 border-b border-slate-200">
             <h2 className="font-semibold">Recent orders</h2>
           </div>
           {recentOrders.length === 0 ? (
-            <p className="p-5 text-sm text-slate-400">No orders yet.</p>
+            <p className="p-5 text-sm text-slate-500">No orders yet.</p>
           ) : (
             <Table>
               <thead>
@@ -109,7 +126,11 @@ export default async function DashboardPage() {
               <tbody>
                 {recentOrders.map((o) => (
                   <tr key={o.id}>
-                    <Td className="font-medium">{o.number}</Td>
+                    <Td className="font-medium">
+                      <Link href={`/orders/${o.id}`} className="text-primary hover:underline">
+                        {o.number}
+                      </Link>
+                    </Td>
                     <Td>{o.customer.name}</Td>
                     <Td>
                       <Badge color={orderStatusColor[o.status] ?? "gray"}>
@@ -130,13 +151,13 @@ export default async function DashboardPage() {
           </div>
           <div className="p-5 space-y-3">
             {lowStockCount === 0 && (
-              <p className="text-sm text-slate-400">Everything is well stocked. ✅</p>
+              <p className="text-sm text-emerald-700">Everything is well stocked.</p>
             )}
             {lowStockProducts.map((p) => (
               <div key={p.id} className="flex items-center justify-between text-sm">
                 <span className="text-slate-700">
                   {p.name}{" "}
-                  <span className="text-slate-400">
+                  <span className="text-slate-500">
                     ({p.color} {p.size})
                   </span>
                 </span>
@@ -152,8 +173,8 @@ export default async function DashboardPage() {
               </div>
             ))}
             <div className="pt-2">
-              <LinkButton href="/inventory" variant="secondary">
-                Go to inventory
+              <LinkButton href="/purchasing" variant="secondary">
+                Reorder materials
               </LinkButton>
             </div>
           </div>

@@ -55,12 +55,29 @@ export async function advanceStatus(fd: FormData) {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { lines: true, invoice: true },
+    include: { lines: { include: { product: true } }, invoice: true },
   });
   if (!order) return;
 
   const next = nextStatus(order.status);
   if (!next) return;
+
+  // Can't ship pairs we don't have
+  if (next === "Shipped") {
+    const need = new Map<string, number>();
+    for (const l of order.lines) need.set(l.productId, (need.get(l.productId) ?? 0) + l.quantity);
+    const short = [...need].flatMap(([productId, qty]) => {
+      const p = order.lines.find((l) => l.productId === productId)!.product;
+      return p.quantity < qty ? [`${p.name} ${p.sku} (need ${qty}, have ${p.quantity})`] : [];
+    });
+    if (short.length) {
+      redirect(
+        `/orders/${order.id}?error=${encodeURIComponent(
+          `Not enough finished stock to ship: ${short.join(", ")}. Complete production first.`
+        )}`
+      );
+    }
+  }
 
   const orderTotal = order.lines.reduce(
     (s, l) => s + l.quantity * l.unitPrice,

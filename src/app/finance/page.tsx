@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { money } from "@/lib/format";
+import { money, date } from "@/lib/format";
 import {
   Card,
   PageHeader,
@@ -57,7 +58,7 @@ export default async function FinancePage() {
         <StatCard label="Receivables" value={money(receivables)} tone="amber" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start mb-6">
         {/* Invoices */}
         <Card className="lg:col-span-2">
           <div className="px-5 py-4 border-b border-slate-200">
@@ -80,7 +81,11 @@ export default async function FinancePage() {
                 const balance = Math.max(0, inv.amount - paid);
                 return (
                   <tr key={inv.id}>
-                    <Td className="font-medium">{inv.number}</Td>
+                    <Td className="font-medium">
+                      <Link href={`/finance/invoices/${inv.id}`} className="text-primary hover:underline">
+                        {inv.number}
+                      </Link>
+                    </Td>
                     <Td>{inv.order?.customer.name ?? "—"}</Td>
                     <Td className="text-right">{money(inv.amount)}</Td>
                     <Td className="text-right">{money(balance)}</Td>
@@ -99,7 +104,7 @@ export default async function FinancePage() {
                     </Td>
                     <Td>
                       {inv.status === "Paid" ? (
-                        <span className="text-xs text-slate-300">—</span>
+                        <span className="text-xs text-slate-400">—</span>
                       ) : (
                         <form
                           action={recordPayment}
@@ -122,7 +127,7 @@ export default async function FinancePage() {
               })}
               {invoices.length === 0 && (
                 <tr>
-                  <Td className="text-slate-400" >No invoices yet.</Td>
+                  <Td className="text-slate-500" >No invoices yet.</Td>
                 </tr>
               )}
             </tbody>
@@ -147,7 +152,7 @@ export default async function FinancePage() {
               </div>
             ))}
             {Object.keys(byCategory).length === 0 && (
-              <p className="text-slate-400 text-xs pl-2">No expenses recorded.</p>
+              <p className="text-slate-500 text-xs pl-2">No expenses recorded.</p>
             )}
             <div className="flex justify-between border-t border-slate-200 pt-2 mt-2">
               <span className="font-semibold">Net profit</span>
@@ -164,31 +169,33 @@ export default async function FinancePage() {
       </div>
 
       {/* Expenses */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-lg font-semibold">Expenses</h2>
         <details className="group relative">
-          <summary className="cursor-pointer select-none rounded-lg bg-slate-900 text-white px-3.5 py-2 text-sm font-medium list-none">
+          <summary className="inline-flex items-center justify-center gap-2 rounded-lg px-3.5 min-h-11 sm:min-h-9 text-sm font-medium transition-colors duration-200 bg-primary text-white hover:bg-primary-hover shadow-sm select-none list-none">
             + Add expense
           </summary>
-          <Card className="p-5 absolute right-0 mt-2 w-[26rem] z-10">
-            <form action={addExpense} className="grid grid-cols-2 gap-4">
+          <Card className="fixed inset-x-4 top-20 z-40 max-h-[calc(100vh-6rem)] overflow-y-auto p-5 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:max-h-none sm:overflow-visible sm:w-[26rem]">
+            <form action={addExpense} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Category">
                 <Select name="category" defaultValue="Overhead">
                   <option>Materials</option>
                   <option>Wages</option>
                   <option>Utilities</option>
                   <option>Overhead</option>
+                  <option>Maintenance</option>
+                  <option>Transport</option>
                 </Select>
               </Field>
               <Field label="Amount ($)">
                 <Input name="amount" type="number" step="0.01" required />
               </Field>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <Field label="Note">
                   <Input name="note" placeholder="Optional" />
                 </Field>
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <Button>Save expense</Button>
               </div>
             </form>
@@ -200,6 +207,7 @@ export default async function FinancePage() {
         <Table>
           <thead>
             <tr>
+              <Th>Date</Th>
               <Th>Category</Th>
               <Th>Note</Th>
               <Th className="text-right">Amount</Th>
@@ -208,6 +216,7 @@ export default async function FinancePage() {
           <tbody>
             {expenses.map((e) => (
               <tr key={e.id}>
+                <Td className="text-slate-500 whitespace-nowrap">{date(e.date)}</Td>
                 <Td>
                   <Badge color="gray">{e.category}</Badge>
                 </Td>

@@ -12,6 +12,10 @@ import {
   Input,
   Select,
   StatCard,
+  AddDetails,
+  LinkButton,
+  SearchBar,
+  EmptyState,
 } from "@/components/ui";
 import {
   addProduct,
@@ -19,36 +23,28 @@ import {
   addSupplier,
   adjustProductStock,
   adjustMaterialStock,
+  setProductCategory,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-function AddDetails({
-  summary,
-  children,
+export default async function InventoryPage({
+  searchParams,
 }: {
-  summary: string;
-  children: React.ReactNode;
+  searchParams: Promise<{ q?: string }>;
 }) {
-  return (
-    <details className="group">
-      <summary className="cursor-pointer select-none rounded-lg bg-slate-900 text-white px-3.5 py-2 text-sm font-medium inline-flex items-center gap-2 list-none">
-        <span className="group-open:hidden">+ {summary}</span>
-        <span className="hidden group-open:inline">× Close</span>
-      </summary>
-      <div className="mt-4">{children}</div>
-    </details>
-  );
-}
-
-export default async function InventoryPage() {
-  const [products, materials, suppliers] = await Promise.all([
+  const { q } = await searchParams;
+  const term = q?.trim().toLowerCase();
+  const match = (...vals: (string | null | undefined)[]) =>
+    !term || vals.some((v) => v?.toLowerCase().includes(term));
+  const [products, materials, suppliers, categories] = await Promise.all([
     prisma.product.findMany({ orderBy: { name: "asc" } }),
     prisma.rawMaterial.findMany({
       orderBy: { name: "asc" },
       include: { supplier: true },
     }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const productValue = products.reduce((s, p) => s + p.cost * p.quantity, 0);
@@ -57,11 +53,22 @@ export default async function InventoryPage() {
     products.filter((p) => p.quantity <= p.reorderLevel).length +
     materials.filter((m) => m.quantity <= m.reorderLevel).length;
 
+  const shownProducts = products.filter((p) => match(p.sku, p.name, p.model, p.color, p.size));
+  const shownMaterials = materials.filter((m) => match(m.name, m.supplier?.name));
+
   return (
     <div>
       <PageHeader
         title="Inventory"
         subtitle="Finished goods, raw materials, and suppliers."
+        action={
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <SearchBar placeholder="Search SKU, product, material" defaultValue={q} />
+            <LinkButton href="/inventory/history" variant="secondary">
+              Stock history
+            </LinkButton>
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -76,7 +83,7 @@ export default async function InventoryPage() {
       </div>
 
       {/* ---------- Finished goods ---------- */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-lg font-semibold">Finished Goods</h2>
         <AddDetails summary="Add product">
           <Card className="p-5">
@@ -86,6 +93,16 @@ export default async function InventoryPage() {
               </Field>
               <Field label="Name">
                 <Input name="name" required placeholder="Classic Sneaker" />
+              </Field>
+              <Field label="Shoe type">
+                <Select name="categoryId" defaultValue="">
+                  <option value="">— none —</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field label="Model">
                 <Input name="model" placeholder="Classic" />
@@ -122,6 +139,7 @@ export default async function InventoryPage() {
             <tr>
               <Th>SKU</Th>
               <Th>Product</Th>
+              <Th>Shoe type</Th>
               <Th className="text-right">Price</Th>
               <Th className="text-right">Stock</Th>
               <Th>Status</Th>
@@ -129,16 +147,35 @@ export default async function InventoryPage() {
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => {
+            {shownProducts.map((p) => {
               const low = p.quantity <= p.reorderLevel;
               return (
                 <tr key={p.id}>
                   <Td className="font-mono text-xs">{p.sku}</Td>
                   <Td>
                     <div className="font-medium">{p.name}</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-slate-500">
                       {[p.color, p.size].filter(Boolean).join(" · ")}
                     </div>
+                  </Td>
+                  <Td>
+                    <form action={setProductCategory} className="flex items-center gap-2">
+                      <input type="hidden" name="productId" value={p.id} />
+                      <Select
+                        name="categoryId"
+                        defaultValue={p.categoryId ?? ""}
+                        className="w-28"
+                        aria-label={`Shoe type for ${p.sku}`}
+                      >
+                        <option value="">— none —</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </Select>
+                      <Button variant="secondary">Set</Button>
+                    </form>
                   </Td>
                   <Td className="text-right">{money(p.price)}</Td>
                   <Td className="text-right font-medium">{p.quantity}</Td>
@@ -166,10 +203,11 @@ export default async function InventoryPage() {
             })}
           </tbody>
         </Table>
+        {shownProducts.length === 0 && <EmptyState message="No products match your search." />}
       </Card>
 
       {/* ---------- Raw materials ---------- */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-lg font-semibold">Raw Materials</h2>
         <AddDetails summary="Add material">
           <Card className="p-5">
@@ -220,7 +258,7 @@ export default async function InventoryPage() {
             </tr>
           </thead>
           <tbody>
-            {materials.map((m) => {
+            {shownMaterials.map((m) => {
               const low = m.quantity <= m.reorderLevel;
               return (
                 <tr key={m.id}>
@@ -228,7 +266,7 @@ export default async function InventoryPage() {
                   <Td className="text-slate-500">{m.supplier?.name ?? "—"}</Td>
                   <Td className="text-right">{money(m.unitCost)}</Td>
                   <Td className="text-right font-medium">
-                    {m.quantity} <span className="text-slate-400">{m.unit}</span>
+                    {m.quantity} <span className="text-slate-500">{m.unit}</span>
                   </Td>
                   <Td>
                     {low ? (
@@ -255,10 +293,11 @@ export default async function InventoryPage() {
             })}
           </tbody>
         </Table>
+        {shownMaterials.length === 0 && <EmptyState message="No materials match your search." />}
       </Card>
 
       {/* ---------- Suppliers ---------- */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-lg font-semibold">Suppliers</h2>
         <AddDetails summary="Add supplier">
           <Card className="p-5">

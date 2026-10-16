@@ -21,6 +21,7 @@ export async function addProduct(fd: FormData) {
       model: str(fd, "model") || null,
       size: str(fd, "size") || null,
       color: str(fd, "color") || null,
+      categoryId: str(fd, "categoryId") || null,
       price: n(fd, "price"),
       cost: n(fd, "cost"),
       quantity: Math.trunc(n(fd, "quantity")),
@@ -29,6 +30,17 @@ export async function addProduct(fd: FormData) {
   });
   revalidatePath("/inventory");
   revalidatePath("/");
+}
+
+export async function setProductCategory(fd: FormData) {
+  const productId = str(fd, "productId");
+  if (!productId) return;
+  await prisma.product.update({
+    where: { id: productId },
+    data: { categoryId: str(fd, "categoryId") || null },
+  });
+  revalidatePath("/inventory");
+  revalidatePath("/output");
 }
 
 export async function addMaterial(fd: FormData) {

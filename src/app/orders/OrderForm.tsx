@@ -50,7 +50,7 @@ export function OrderForm({
     <form action={createOrder} className="space-y-5">
       <input type="hidden" name="lines" value={JSON.stringify(valid)} />
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid gap-4">
         <Field label="Customer">
           <Select name="customerId" required defaultValue="">
             <option value="" disabled>
@@ -70,59 +70,61 @@ export function OrderForm({
 
       <div>
         <p className="text-sm font-medium text-slate-700 mb-2">Line items</p>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {lines.map((l, i) => {
-            const p = products.find((x) => x.id === l.productId);
             return (
-              <div key={i} className="flex items-end gap-2">
-                <div className="flex-1">
-                  <Select
-                    value={l.productId}
-                    onChange={(e) => onPick(i, e.target.value)}
+              <div key={i} className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <Select
+                      value={l.productId}
+                      onChange={(e) => onPick(i, e.target.value)}
+                      aria-label="Product"
+                    >
+                      <option value="">Select product…</option>
+                      {products.map((pr) => (
+                        <option key={pr.id} value={pr.id}>
+                          {pr.name} ({pr.color} {pr.size}) · {pr.sku}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(i)}
+                    className="h-9 w-9 shrink-0 rounded-lg text-lg text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent"
+                    aria-label="Remove line"
+                    disabled={lines.length === 1}
                   >
-                    <option value="">Select product…</option>
-                    {products.map((pr) => (
-                      <option key={pr.id} value={pr.id}>
-                        {pr.name} ({pr.color} {pr.size}) · {pr.sku}
-                      </option>
-                    ))}
-                  </Select>
+                    ×
+                  </button>
                 </div>
-                <div className="w-20">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={l.quantity}
-                    onChange={(e) =>
-                      update(i, { quantity: Number(e.target.value) || 0 })
-                    }
-                    aria-label="Quantity"
-                  />
+                <div className="mt-2 grid grid-cols-3 gap-2 items-end">
+                  <label className="block">
+                    <span className="block text-xs text-slate-500 mb-1">Qty (pairs)</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={l.quantity}
+                      onChange={(e) => update(i, { quantity: Number(e.target.value) || 0 })}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs text-slate-500 mb-1">Unit price</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={l.unitPrice}
+                      onChange={(e) => update(i, { unitPrice: Number(e.target.value) || 0 })}
+                    />
+                  </label>
+                  <div className="text-right">
+                    <span className="block text-xs text-slate-500 mb-1">Subtotal</span>
+                    <span className="block py-2 text-sm font-medium">
+                      ${(l.quantity * l.unitPrice).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
-                <div className="w-28">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={l.unitPrice}
-                    onChange={(e) =>
-                      update(i, { unitPrice: Number(e.target.value) || 0 })
-                    }
-                    aria-label="Unit price"
-                  />
-                </div>
-                <div className="w-24 text-right text-sm text-slate-600 pb-2">
-                  ${(l.quantity * l.unitPrice).toFixed(2)}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeLine(i)}
-                  className="pb-2 text-slate-400 hover:text-red-500 text-lg"
-                  aria-label="Remove line"
-                  disabled={lines.length === 1}
-                >
-                  ×
-                </button>
-                {p && p.price !== l.unitPrice ? null : null}
               </div>
             );
           })}
@@ -130,9 +132,9 @@ export function OrderForm({
         <button
           type="button"
           onClick={addLine}
-          className="mt-2 text-sm text-slate-600 hover:text-slate-900"
+          className="mt-3 text-sm font-medium text-slate-700 hover:text-slate-900"
         >
-          + Add line
+          + Add another product
         </button>
       </div>
 

@@ -19,8 +19,9 @@ model Supplier {
   phone     String?
   email     String?
   address   String?
-  materials RawMaterial[]
-  createdAt DateTime      @default(now())
+  materials      RawMaterial[]
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime        @default(now())
 }
 
 model RawMaterial {
@@ -32,8 +33,10 @@ model RawMaterial {
   reorderLevel Float           @default(0)
   supplier     Supplier?       @relation(fields: [supplierId], references: [id])
   supplierId   String?
-  movements    StockMovement[]
-  createdAt    DateTime        @default(now())
+  movements     StockMovement[]
+  bomItems      BomItem[]
+  purchaseLines PurchaseLine[]
+  createdAt     DateTime        @default(now())
 }
 
 model Product {
@@ -47,9 +50,14 @@ model Product {
   cost         Float           @default(0)
   quantity     Int             @default(0)
   reorderLevel Int             @default(0)
+  category     Category?       @relation(fields: [categoryId], references: [id])
+  categoryId   String?
   movements    StockMovement[]
   orderLines   OrderLine[]
-  createdAt    DateTime        @default(now())
+  bom          BomItem[]
+  batches      ProductionBatch[]
+  outputs      ProductionLog[]
+  createdAt    DateTime          @default(now())
 }
 
 model StockMovement {
@@ -86,6 +94,7 @@ model Order {
   status     String      @default("Draft") // Draft, Confirmed, In Production, Shipped, Delivered, Closed
   lines      OrderLine[]
   invoice    Invoice?
+  batches    ProductionBatch[]
   notes      String?
   createdAt  DateTime    @default(now())
 }
@@ -109,10 +118,13 @@ model Employee {
   department String?
   phone      String?
   email      String?
+  payType    String       @default("Daily") // Daily (wageRate × days) or Piece (pairs × category piece rate)
   wageRate   Float        @default(0) // per day
   joinDate   DateTime     @default(now())
   active     Boolean      @default(true)
   attendance Attendance[]
+  payrolls   PayrollRun[]
+  outputs    ProductionLog[]
 }
 
 model Attendance {
@@ -120,7 +132,7 @@ model Attendance {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId String
   date       DateTime @default(now())
-  status     String   @default("Present") // Present, Absent, Leave
+  status     String   @default("Present") // Present, Half Day, Absent, Leave
   hours      Float    @default(8)
 
   @@unique([employeeId, date])
@@ -155,4 +167,99 @@ model Expense {
   amount    Float
   note      String?
   date      DateTime @default(now())
+}
+
+// ---------- Production ----------
+
+// Materials needed to make ONE pair of a product
+model BomItem {
+  id            String      @id @default(cuid())
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId     String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  quantity      Float       @default(0)
+
+  @@unique([productId, rawMaterialId])
+}
+
+model ProductionBatch {
+  id           String    @id @default(cuid())
+  number       String    @unique
+  product      Product   @relation(fields: [productId], references: [id])
+  productId    String
+  quantity     Int       @default(0)
+  status       String    @default("Planned") // Planned, In Progress, Completed, Cancelled
+  order        Order?    @relation(fields: [orderId], references: [id])
+  orderId      String?
+  materialCost Float     @default(0) // cost of materials consumed when started
+  notes        String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+// ---------- Purchasing ----------
+
+model PurchaseOrder {
+  id         String         @id @default(cuid())
+  number     String         @unique
+  supplier   Supplier       @relation(fields: [supplierId], references: [id])
+  supplierId String
+  status     String         @default("Ordered") // Ordered, Received, Cancelled
+  lines      PurchaseLine[]
+  notes      String?
+  receivedAt DateTime?
+  createdAt  DateTime       @default(now())
+}
+
+model PurchaseLine {
+  id              String        @id @default(cuid())
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  rawMaterial     RawMaterial   @relation(fields: [rawMaterialId], references: [id])
+  rawMaterialId   String
+  quantity        Float         @default(0)
+  unitCost        Float         @default(0)
+}
+
+// ---------- Payroll ----------
+
+model PayrollRun {
+  id         String   @id @default(cuid())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  month      String // YYYY-MM
+  daysWorked Float    @default(0)
+  amount     Float    @default(0)
+  paidAt     DateTime @default(now())
+
+  @@unique([employeeId, month])
+}
+
+// ---------- Piece-rate work ----------
+
+// Shoe type (Sneaker, Boot, Sandal…) with the fixed amount paid to a worker per pair made
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  pieceRate Float     @default(0)
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+// Pairs a worker made on a day. Rate is copied at entry so later rate changes don't alter past pay.
+model ProductionLog {
+  id         String   @id @default(cuid())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  date       DateTime
+  quantity   Int
+  rate       Float
+  amount     Float
+  createdAt  DateTime @default(now())
+
+  @@index([date])
 }
