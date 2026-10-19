@@ -95,7 +95,7 @@ export default async function StaffPage({
                     <option value="Piece">Per pair (piece rate)</option>
                   </Select>
                 </Field>
-                <Field label="Daily wage ($, if daily)">
+                <Field label="Daily wage (Rs., if daily)">
                   <Input name="wageRate" type="number" step="0.01" defaultValue={0} />
                 </Field>
                 <Field label="Phone">

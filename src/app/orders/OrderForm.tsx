@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createOrder } from "./actions";
 import { Button, Field, Input, Select } from "@/components/ui";
+import { money } from "@/lib/format";
 
 type Product = {
   id: string;
@@ -121,7 +122,7 @@ export function OrderForm({
                   <div className="text-right">
                     <span className="block text-xs text-slate-500 mb-1">Subtotal</span>
                     <span className="block py-2 text-sm font-medium">
-                      ${(l.quantity * l.unitPrice).toFixed(2)}
+                      {money(l.quantity * l.unitPrice)}
                     </span>
                   </div>
                 </div>
@@ -140,7 +141,7 @@ export function OrderForm({
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-4">
         <span className="text-sm text-slate-500">Order total</span>
-        <span className="text-lg font-semibold">${total.toFixed(2)}</span>
+        <span className="text-lg font-semibold">{money(total)}</span>
       </div>
 
       <Button>Create order</Button>

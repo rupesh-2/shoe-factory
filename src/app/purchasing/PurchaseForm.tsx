@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createPurchaseOrder } from "./actions";
 import { Button, Field, Input, Select } from "@/components/ui";
+import { money } from "@/lib/format";
 
 type Material = {
   id: string;
@@ -132,7 +133,7 @@ export function PurchaseForm({
                   <div className="text-right">
                     <span className="block text-xs text-slate-500 mb-1">Subtotal</span>
                     <span className="block py-2 text-sm font-medium">
-                      ${(l.quantity * l.unitCost).toFixed(2)}
+                      {money(l.quantity * l.unitCost)}
                     </span>
                   </div>
                 </div>
@@ -151,7 +152,7 @@ export function PurchaseForm({
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-4">
         <span className="text-sm text-slate-500">PO total</span>
-        <span className="text-lg font-semibold">${total.toFixed(2)}</span>
+        <span className="text-lg font-semibold">{money(total)}</span>
       </div>
 
       <Button>Create purchase order</Button>

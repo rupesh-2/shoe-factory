@@ -187,7 +187,7 @@ export default async function FinancePage() {
                   <option>Transport</option>
                 </Select>
               </Field>
-              <Field label="Amount ($)">
+              <Field label="Amount (Rs.)">
                 <Input name="amount" type="number" step="0.01" required />
               </Field>
               <div className="sm:col-span-2">

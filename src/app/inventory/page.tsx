@@ -116,10 +116,10 @@ export default async function InventoryPage({
               <Field label="Quantity">
                 <Input name="quantity" type="number" defaultValue={0} />
               </Field>
-              <Field label="Price ($)">
+              <Field label="Price (Rs.)">
                 <Input name="price" type="number" step="0.01" defaultValue={0} />
               </Field>
-              <Field label="Cost ($)">
+              <Field label="Cost (Rs.)">
                 <Input name="cost" type="number" step="0.01" defaultValue={0} />
               </Field>
               <Field label="Reorder level">
@@ -231,7 +231,7 @@ export default async function InventoryPage({
               <Field label="Quantity">
                 <Input name="quantity" type="number" step="0.01" defaultValue={0} />
               </Field>
-              <Field label="Unit cost ($)">
+              <Field label="Unit cost (Rs.)">
                 <Input name="unitCost" type="number" step="0.01" defaultValue={0} />
               </Field>
               <Field label="Reorder level">

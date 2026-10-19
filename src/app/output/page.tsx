@@ -296,7 +296,7 @@ export default async function OutputPage({
               </Field>
             </div>
             <div className="w-24">
-              <Field label="$/pair">
+              <Field label="Rs./pair">
                 <Input name="pieceRate" type="number" step="0.01" min={0} defaultValue={0} />
               </Field>
             </div>
